@@ -66,8 +66,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "ayugram",
         "tdesktop",
         "64gram",
-        "kotatogram",
-        "exteragram"
+        "kotatogram"
     ]
 }
 
