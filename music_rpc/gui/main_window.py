@@ -399,7 +399,7 @@ class MainWindow(QMainWindow):
 
         if state.duration > 0:
             pct = int((state.position / state.duration) * 100)
-            self.progress_bar.setValue(min(100, max(0, pct)))\
+            self.progress_bar.setValue(min(100, max(0, pct)))
         else:
             self.progress_bar.setValue(0)
 
