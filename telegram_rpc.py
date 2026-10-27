@@ -23,11 +23,28 @@ import re
 import logging
 from typing import Optional, Dict, Any, Tuple
 
-try:
-    import dbus
-except ImportError:
-    print("Ошибка: не найден модуль dbus-python. Установите python-dbus / dbus-python.")
-    sys.exit(1)
+if sys.platform == "win32":
+    import asyncio
+    try:
+        import winsdk.windows.media.control as wmc
+        from winsdk.windows.media.control import (
+            GlobalSystemMediaTransportControlsSessionManager as SessionManager,
+            GlobalSystemMediaTransportControlsSessionPlaybackStatus as PlaybackStatus
+        )
+    except ImportError:
+        wmc = None
+        SessionManager = None
+        PlaybackStatus = None
+    dbus = None
+else:
+    wmc = None
+    SessionManager = None
+    PlaybackStatus = None
+    try:
+        import dbus
+    except ImportError:
+        print("Ошибка: не найден модуль dbus-python. Установите python-dbus / dbus-python.")
+        sys.exit(1)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -301,15 +318,23 @@ class CoverFinder:
 
 
 class DiscordIPC:
-    """Низкоуровневый клиент Discord Rich Presence через Unix Domain Socket."""
+    """Низкоуровневый клиент Discord Rich Presence (Unix Domain Socket на Linux, Named Pipe на Windows)."""
 
     def __init__(self, client_id: str):
         self.client_id = client_id
         self.sock: Optional[socket.socket] = None
+        self.pipe: Optional[Any] = None
         self.connected = False
         self.last_connect_attempt = 0.0
 
     def _find_ipc_path(self) -> Optional[str]:
+        if sys.platform == "win32":
+            for i in range(10):
+                path = rf"\\.\pipe\discord-ipc-{i}"
+                if os.path.exists(path):
+                    return path
+            return None
+
         runtime_dir = os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
         candidates = [
             f"{runtime_dir}/discord-ipc-{i}" for i in range(10)
@@ -320,6 +345,27 @@ class DiscordIPC:
             if os.path.exists(path):
                 return path
         return None
+
+    def _write_raw(self, data: bytes):
+        if sys.platform == "win32":
+            if self.pipe:
+                self.pipe.write(data)
+        else:
+            if self.sock:
+                self.sock.sendall(data)
+
+    def _read_raw(self, length: int) -> bytes:
+        buf = b""
+        while len(buf) < length:
+            needed = length - len(buf)
+            if sys.platform == "win32":
+                chunk = self.pipe.read(needed) if self.pipe else b""
+            else:
+                chunk = self.sock.recv(min(needed, 4096)) if self.sock else b""
+            if not chunk:
+                break
+            buf += chunk
+        return buf
 
     def connect(self) -> bool:
         if self.connected:
@@ -335,25 +381,26 @@ class DiscordIPC:
             return False
 
         try:
-            self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            self.sock.settimeout(3.0)
-            self.sock.connect(ipc_path)
+            if sys.platform == "win32":
+                self.pipe = open(ipc_path, "r+b", buffering=0)
+            else:
+                self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                self.sock.settimeout(3.0)
+                self.sock.connect(ipc_path)
 
             handshake = json.dumps({"v": 1, "client_id": self.client_id}).encode("utf-8")
-            self.sock.sendall(struct.pack("<II", 0, len(handshake)) + handshake)
+            self._write_raw(struct.pack("<II", 0, len(handshake)) + handshake)
 
-            hdr = self.sock.recv(8)
-            if not hdr:
+            hdr = self._read_raw(8)
+            if not hdr or len(hdr) < 8:
                 self.disconnect()
                 return False
 
             op, length = struct.unpack("<II", hdr)
-            data = b""
-            while len(data) < length:
-                chunk = self.sock.recv(min(length - len(data), 4096))
-                if not chunk:
-                    break
-                data += chunk
+            data = self._read_raw(length)
+            if len(data) < length:
+                self.disconnect()
+                return False
 
             resp = json.loads(data.decode("utf-8"))
             if resp.get("evt") == "READY":
@@ -371,6 +418,12 @@ class DiscordIPC:
 
     def disconnect(self):
         self.connected = False
+        if self.pipe:
+            try:
+                self.pipe.close()
+            except Exception:
+                pass
+            self.pipe = None
         if self.sock:
             try:
                 self.sock.close()
@@ -385,19 +438,17 @@ class DiscordIPC:
 
         try:
             raw = json.dumps(data).encode("utf-8")
-            self.sock.sendall(struct.pack("<II", op, len(raw)) + raw)
+            self._write_raw(struct.pack("<II", op, len(raw)) + raw)
 
-            hdr = self.sock.recv(8)
-            if not hdr:
+            hdr = self._read_raw(8)
+            if not hdr or len(hdr) < 8:
                 self.disconnect()
                 return None
             op_resp, length = struct.unpack("<II", hdr)
-            buf = b""
-            while len(buf) < length:
-                chunk = self.sock.recv(min(length - len(buf), 4096))
-                if not chunk:
-                    break
-                buf += chunk
+            buf = self._read_raw(length)
+            if len(buf) < length:
+                self.disconnect()
+                return None
             return json.loads(buf.decode("utf-8"))
         except Exception as e:
             logger.warning("Ошибка связи с Discord IPC: %s", e)
@@ -487,15 +538,17 @@ def parse_clean_track(
 
 
 class TelegramPlayerWatcher:
-    """Мониторинг плеера Telegram через D-Bus (MPRIS)."""
+    """Мониторинг плеера Telegram через D-Bus (MPRIS) на Linux."""
 
     def __init__(self, name_hints: list, artist_finder: Optional[ArtistFinder] = None, auto_detect: bool = True):
         self.name_hints = [h.lower() for h in name_hints]
-        self.bus = dbus.SessionBus()
+        self.bus = dbus.SessionBus() if dbus else None
         self.artist_finder = artist_finder
         self.auto_detect = auto_detect
 
     def find_active_player(self) -> Optional[str]:
+        if not self.bus:
+            return None
         try:
             names = self.bus.list_names()
         except Exception as e:
@@ -525,6 +578,8 @@ class TelegramPlayerWatcher:
         return matched[0]
 
     def get_player_state(self, player_bus_name: str) -> Optional[Dict[str, Any]]:
+        if not self.bus:
+            return None
         try:
             obj = self.bus.get_object(player_bus_name, "/org/mpris/MediaPlayer2")
             props = dbus.Interface(obj, "org.freedesktop.DBus.Properties")
@@ -570,6 +625,123 @@ class TelegramPlayerWatcher:
         except Exception as e:
             return None
 
+    def get_state(self) -> Optional[Dict[str, Any]]:
+        player_name = self.find_active_player()
+        if not player_name:
+            return None
+        return self.get_player_state(player_name)
+
+
+class WindowsPlayerWatcher:
+    """Мониторинг плеера Telegram на Windows через System Media Transport Controls (SMTC)."""
+
+    def __init__(self, name_hints: list, artist_finder: Optional[ArtistFinder] = None, auto_detect: bool = True):
+        self.name_hints = [h.lower() for h in name_hints]
+        self.artist_finder = artist_finder
+        self.auto_detect = auto_detect
+        self.manager = None
+
+    async def _async_get_manager(self):
+        if not self.manager and SessionManager:
+            try:
+                self.manager = await SessionManager.request_async()
+            except Exception as e:
+                logger.warning("Не удалось получить SMTC SessionManager: %s", e)
+        return self.manager
+
+    async def _async_get_state(self) -> Optional[Dict[str, Any]]:
+        if not SessionManager:
+            return None
+
+        manager = await self._async_get_manager()
+        if not manager:
+            return None
+
+        try:
+            sessions = manager.get_sessions()
+        except Exception:
+            return None
+
+        matched_session = None
+
+        # 1. Ищем играющую сессию Telegram
+        for session in sessions:
+            try:
+                source = (session.source_app_user_model_id or "").lower()
+                if any(hint in source for hint in self.name_hints):
+                    info = session.get_playback_info()
+                    if info and info.playback_status == PlaybackStatus.PLAYING:
+                        matched_session = session
+                        break
+            except Exception:
+                continue
+
+        # 2. Если играющей нет, берем любую подходящую сессию (например на паузе)
+        if not matched_session:
+            for session in sessions:
+                try:
+                    source = (session.source_app_user_model_id or "").lower()
+                    if any(hint in source for hint in self.name_hints):
+                        matched_session = session
+                        break
+                except Exception:
+                    continue
+
+        if not matched_session:
+            return None
+
+        try:
+            playback = matched_session.get_playback_info()
+            if not playback:
+                return None
+
+            p_status = playback.playback_status
+            if p_status == PlaybackStatus.PLAYING:
+                status = "Playing"
+            elif p_status == PlaybackStatus.PAUSED:
+                status = "Paused"
+            else:
+                status = "Stopped"
+
+            media_props = await matched_session.try_get_media_properties_async()
+            raw_title = (media_props.title or "").strip() if media_props else ""
+            raw_artist = (media_props.artist or "").strip() if media_props else ""
+            album = (media_props.album_title or "").strip() if media_props else ""
+
+            timeline = matched_session.get_timeline_properties()
+            position_sec = 0.0
+            duration_sec = 0.0
+            if timeline:
+                if timeline.position:
+                    position_sec = max(0.0, timeline.position.total_seconds())
+                if timeline.end_time:
+                    duration_sec = max(0.0, timeline.end_time.total_seconds())
+
+            artist, title = parse_clean_track(
+                raw_artist,
+                raw_title,
+                artist_finder=self.artist_finder,
+                auto_detect=self.auto_detect
+            )
+
+            return {
+                "status": status,
+                "title": title,
+                "artist": artist,
+                "album": album,
+                "position": position_sec,
+                "duration": duration_sec,
+                "art_url": ""
+            }
+        except Exception:
+            return None
+
+    def get_state(self) -> Optional[Dict[str, Any]]:
+        try:
+            return asyncio.run(asyncio.wait_for(self._async_get_state(), timeout=2.5))
+        except Exception:
+            return None
+
 
 def load_config(config_path: str) -> Dict[str, Any]:
     cfg = DEFAULT_CONFIG.copy()
@@ -610,7 +782,14 @@ def main():
 
     ipc = DiscordIPC(client_id)
     artist_finder = ArtistFinder()
-    watcher = TelegramPlayerWatcher(player_hints, artist_finder=artist_finder, auto_detect=auto_detect_artist)
+
+    if sys.platform == "win32":
+        if not SessionManager:
+            logger.warning("Модуль 'winsdk' не установлен! Установите его: pip install winsdk")
+        watcher = WindowsPlayerWatcher(player_hints, artist_finder=artist_finder, auto_detect=auto_detect_artist)
+    else:
+        watcher = TelegramPlayerWatcher(player_hints, artist_finder=artist_finder, auto_detect=auto_detect_artist)
+
     covers = CoverFinder(fallback_cover)
 
     running = True
@@ -634,21 +813,11 @@ def main():
 
     while running:
         try:
-            player_name = watcher.find_active_player()
+            state = watcher.get_state()
 
-            if not player_name:
-                if had_active_presence:
-                    logger.info("Telegram не воспроизводит аудио. Очистка статуса.")
-                    ipc.clear_activity()
-                    had_active_presence = False
-                    last_signature = None
-                time.sleep(poll_interval)
-                continue
-
-            state = watcher.get_player_state(player_name)
             if not state or state["status"] == "Stopped":
                 if had_active_presence:
-                    logger.info("Воспроизведение остановлено.")
+                    logger.info("Воспроизведение остановлено. Очистка статуса.")
                     ipc.clear_activity()
                     had_active_presence = False
                     last_signature = None
