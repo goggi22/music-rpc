@@ -21,6 +21,8 @@
     "fallback_cover_telegram": "https://cdn.discordapp.com/app-assets/1262937085635985409/1262949949071691818.png",
     "minimize_to_tray": true,
     "start_minimized": false,
+    "telegram_filter_non_music": true,
+    "telegram_min_duration_seconds": 12.0,
     "player_name_hints": [
         "telegram",
         "ayugram",
