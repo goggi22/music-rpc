@@ -70,13 +70,14 @@ class PlayerManager:
         states = self.get_all_states()
 
         # 1. Проверяем, кто сейчас активно играет (Playing)
-        for name in ("spotify", "telegram", "soundcloud"):
+        # Приоритет: сначала музыкальные сервисы (Spotify, SoundCloud), затем мессенджер (Telegram)
+        for name in ("spotify", "soundcloud", "telegram"):
             st = states.get(name)
             if st and st.status == "Playing":
                 return st
 
         # 2. Если никто не играет, берем плеер на паузе (Paused)
-        for name in ("spotify", "telegram", "soundcloud"):
+        for name in ("spotify", "soundcloud", "telegram"):
             st = states.get(name)
             if st and st.status == "Paused":
                 return st
@@ -88,7 +89,7 @@ class PlayerManager:
         target_name = self.mode if self.mode in self.watchers else None
         if not target_name:
             states = self.get_all_states()
-            for name in ("spotify", "telegram", "soundcloud"):
+            for name in ("spotify", "soundcloud", "telegram"):
                 st = states.get(name)
                 if st and st.is_active:
                     target_name = name
