@@ -16,14 +16,31 @@ logger = logging.getLogger("MusicRPC.PlayerManager")
 class PlayerManager:
     """Управление активными наблюдателями за плеерами."""
 
-    def __init__(self, mode: str = "auto", artist_finder: Optional[ArtistFinder] = None):
+    def __init__(self, mode: str = "auto", artist_finder: Optional[ArtistFinder] = None, config: Optional[object] = None):
         self.mode = mode.lower().strip()
         self.artist_finder = artist_finder or ArtistFinder()
         self.manual_state: Optional[TrackState] = None
+        self.config = config
+
+        filter_tg = True
+        min_dur = 12.0
+        hints = None
+        auto_detect = True
+        if self.config and hasattr(self.config, "get"):
+            filter_tg = self.config.get("telegram_filter_non_music", True)
+            min_dur = float(self.config.get("telegram_min_duration_seconds", 12.0))
+            hints = self.config.get("player_name_hints", None)
+            auto_detect = self.config.get("auto_detect_missing_artist", True)
 
         self.watchers: Dict[str, BasePlayerWatcher] = {
             "spotify": SpotifyWatcher(),
-            "telegram": TelegramWatcher(artist_finder=self.artist_finder),
+            "telegram": TelegramWatcher(
+                hints=hints,
+                artist_finder=self.artist_finder,
+                auto_detect=auto_detect,
+                filter_non_music=filter_tg,
+                min_duration=min_dur
+            ),
             "soundcloud": SoundCloudWatcher()
         }
 
