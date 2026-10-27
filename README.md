@@ -1,6 +1,6 @@
 # Telegram Discord Rich Presence (RPC) в стиле Spotify 🎵
 
-Отображает в твоём Discord-профиле текущую музыку из **Telegram** (AyuGram, официальный Telegram Desktop, Kotatogram, 64Gram, ExteraGram и др.) точно так же, как это делает **Spotify**.
+Отображает в твоём Discord-профиле текущую музыку из **Telegram** (AyuGram, официальный Telegram Desktop, Kotatogram, 64Gram и др.) точно так же, как это делает **Spotify**.
 
 Чистый Python без тяжелых зависимостей: прямое общение с Discord через IPC-сокет и опрос плеера через D-Bus (MPRIS).
 
@@ -63,8 +63,7 @@ cd tg-discord-rpc
         "ayugram",
         "tdesktop",
         "64gram",
-        "kotatogram",
-        "exteragram"
+        "kotatogram"
     ]
 }
 ```
