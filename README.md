@@ -2,7 +2,7 @@
 
 Отображает в твоём Discord-профиле текущую музыку из **Telegram** (AyuGram, официальный Telegram Desktop, Kotatogram, 64Gram и др.) точно так же, как это делает **Spotify**.
 
-Чистый Python без тяжелых зависимостей: прямое общение с Discord через IPC-сокет и опрос плеера через D-Bus (MPRIS).
+Поддерживает **Linux** (D-Bus MPRIS) и **Windows** (System Media Transport Controls / SMTC). Чистый Python с прямым подключением к Discord IPC.
 
 ---
 
@@ -14,24 +14,44 @@
 - ⏱ **Живой прогресс-бар**: синхронизированный таймлайн трека (прошло / осталось).
 - ⏸ **Режим паузы**: при паузе отображает `⏸` и останавливает таймер.
 - 🔗 **Кнопка «Найти трек»**: ссылка на мгновенный поиск трека на YouTube в один клик.
-- 🐧 **Systemd User Service**: работает как фоновый сервис в Linux (автозапуск при логине).
+- 🐧 **Linux**: фоновый сервис `systemd` (автозапуск при входе).
+- 🪟 **Windows**: тихий фоновый автозапуск без всплывающих черных консольных окон (через VBS/реестр).
 
 ---
 
-## 🚀 Быстрый старт
+## 📦 Скачать готовые архивы (Releases)
 
-### 1. Клонирование
+Готовые zip-архивы для каждой платформы доступны во вкладке [**Releases**](https://github.com/goggi22/tg-discord-rpc/releases):
+- `tg-discord-rpc-windows.zip` — версия для Windows (включает bat-скрипты запуска и автозагрузки).
+- `tg-discord-rpc-linux.zip` — версия для Linux (включает systemd сервис и скрипты управления).
+
+---
+
+## 🚀 Установка и запуск
+
+### 🪟 На Windows:
+1. Скачай `tg-discord-rpc-windows.zip` из [Releases](https://github.com/goggi22/tg-discord-rpc/releases) (или склонируй репозиторий).
+2. Распакуй архив в удобную папку.
+3. Для добавления в автозапуск дважды кликни:
+   - `install_autostart_windows.bat` — автоматически установит нужные зависимости (`winsdk`), добавит тихий автозапуск в систему и сразу запустит RPC в фоне.
+4. Для разового запуска в окне консоли:
+   - `start_windows.bat`
+5. Для удаления из автозапуска:
+   - `uninstall_autostart_windows.bat`
+
+---
+
+### 🐧 На Linux:
+1. Клонирование или распаковка `tg-discord-rpc-linux.zip`:
 ```bash
 git clone https://github.com/goggi22/tg-discord-rpc.git
 cd tg-discord-rpc
 ```
-
-### 2. Запуск сервиса в фоне (systemd)
+2. Установка в автозапуск (`systemd`):
 ```bash
 ./install_service.sh
 ```
-
-### 3. Управление
+3. Управление сервисом:
 - **Статус:** `systemctl --user status telegram-discord-rpc`
 - **Логи в реальном времени:** `journalctl --user -u telegram-discord-rpc -f`
 - **Перезапуск:** `systemctl --user restart telegram-discord-rpc`
@@ -70,7 +90,7 @@ cd tg-discord-rpc
 
 ---
 
-## 🛠 Требования
-- Linux (любой дистрибутив с D-Bus: Arch, Ubuntu, Fedora, Debian и т.д.)
-- Python 3.8+ (используются только стандартные библиотеки и системный `dbus-python`)
-- Запущенный Discord (клиент или Vesktop/WebCord) и Telegram Desktop / AyuGram
+## 🛠 Системные требования
+- **Linux:** любой дистрибутив с D-Bus (Arch, Ubuntu, Fedora, Debian и т.д.), Python 3.8+ (`python-dbus`).
+- **Windows:** Windows 10 или 11, Python 3.8+ (`pip install winsdk`).
+- Запущенный клиент Discord (официальный клиент или Vesktop / WebCord) и Telegram Desktop / AyuGram.
