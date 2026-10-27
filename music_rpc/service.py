@@ -42,6 +42,18 @@ class MusicRPCService:
         self.config.set("source", source)
         self.player_manager.set_mode(source)
 
+    def set_manual_track(self, artist: str, title: str, album: str = "", duration: float = 0.0):
+        self.player_manager.set_manual_track(artist, title, album, duration)
+
+    def get_available_tracks(self) -> Dict[str, Optional[TrackState]]:
+        return self.player_manager.get_all_states()
+
+    def get_current_track(self) -> Optional[TrackState]:
+        return self.player_manager.get_active_state()
+
+    def control_media(self, action: str) -> bool:
+        return self.player_manager.control_media(action)
+
     def tick(self):
         """Один шаг опроса плееров и обновления Discord Presence."""
         is_connected = self.ipc.connected or self.ipc.connect()
@@ -106,42 +118,82 @@ class MusicRPCService:
             self.on_state_change(state, cover_url)
 
         if need_update and is_connected:
-            # 1. Формирование второй строки (state)
-            state_fmt = self.config.get("state_format", "{artist}")
-            formatted_state = state_fmt.replace("{artist}", artist).replace("{title}", title)
-            if status == "Paused":
-                state_text = f"⏸ {formatted_state}"
-            else:
-                state_text = formatted_state
-
-            # Маленькая иконка источника
-            source_labels = {
-                "spotify": "in Spotify",
-                "telegram": "in Telegram",
-                "soundcloud": "in SoundCloud"
-            }
-            small_label = source_labels.get(state.source, "Playing Music")
-
             activity_type = int(self.config.get("activity_type", 2))
+
+            # Точная настройка под конкретный плеер
+            if state.source == "spotify":
+                # 100% вид официального Spotify в Discord:
+                # 1. Заголовок: "Listening to Spotify" (Слушает Spotify)
+                activity_name = "Spotify"
+                # 2. Исполнитель: "by <Artist>"
+                if not artist.lower().startswith("by "):
+                    state_text = f"by {artist}"
+                else:
+                    state_text = artist
+                if status == "Paused":
+                    state_text = f"⏸ {state_text}"
+
+                # 3. Обложка и hover-текст альбома (БЕЗ маленькой иконки в углу, как в оригинале!)
+                assets: Dict[str, Any] = {
+                    "large_image": cover_url
+                }
+                if state.album:
+                    assets["large_text"] = sanitize_str(state.album)
+
+            elif state.source == "soundcloud":
+                show_author = bool(self.config.get("show_author_as_activity_name", True))
+                activity_name = sanitize_str(artist) if show_author and artist else "SoundCloud"
+                if not artist.lower().startswith("by "):
+                    state_text = f"by {artist}"
+                else:
+                    state_text = artist
+                if status == "Paused":
+                    state_text = f"⏸ {state_text}"
+
+                assets = {
+                    "large_image": cover_url,
+                    "small_image": "https://raw.githubusercontent.com/walkxcode/dashboard-icons/main/png/soundcloud.png",
+                    "small_text": "in SoundCloud (Пауза)" if status == "Paused" else "in SoundCloud"
+                }
+                if state.album:
+                    assets["large_text"] = sanitize_str(state.album)
+
+            elif state.source == "telegram":
+                show_author = bool(self.config.get("show_author_as_activity_name", True))
+                activity_name = sanitize_str(artist) if show_author and artist else (state.source_display or "Telegram")
+
+                state_fmt = self.config.get("state_format", "{artist}")
+                formatted_state = state_fmt.replace("{artist}", artist).replace("{title}", title)
+                state_text = f"⏸ {formatted_state}" if status == "Paused" else formatted_state
+
+                assets = {
+                    "large_image": cover_url,
+                    "small_image": "1",  # Telegram иконка в ID приложения
+                    "small_text": "in Telegram (Пауза)" if status == "Paused" else "in Telegram"
+                }
+                if state.album:
+                    assets["large_text"] = sanitize_str(state.album)
+
+            else:  # manual / кастомный трек / другое
+                show_author = bool(self.config.get("show_author_as_activity_name", True))
+                activity_name = sanitize_str(artist) if show_author and artist else (state.source_display or "Music")
+                state_text = f"⏸ {artist}" if status == "Paused" else artist
+                assets = {
+                    "large_image": cover_url,
+                    "small_text": "Music RPC"
+                }
+                if state.album:
+                    assets["large_text"] = sanitize_str(state.album)
+
             activity: Dict[str, Any] = {
                 "type": activity_type,
+                "name": activity_name,
                 "details": sanitize_str(title),
                 "state": sanitize_str(state_text),
-                "assets": {
-                    "large_image": cover_url,
-                    "small_image": "1",
-                    "small_text": f"{small_label} (Пауза)" if status == "Paused" else small_label
-                }
+                "assets": assets
             }
 
-            # Название активности
-            show_author = bool(self.config.get("show_author_as_activity_name", True))
-            if show_author and artist:
-                activity["name"] = sanitize_str(artist)
-            else:
-                activity["name"] = state.source_display or "Music"
-
-            # Прогресс-бар
+            # Прогресс-бар / таймлайн
             if status == "Playing" and dur > 0:
                 activity["timestamps"] = {
                     "start": int(now - pos),
@@ -152,15 +204,33 @@ class MusicRPCService:
                     "start": int(now - pos)
                 }
 
-            # Кнопка поиска / прослушивания
+            # Кнопка перехода к треку
             if self.config.get("show_button", True):
-                if state.track_url and state.track_url.startswith("http"):
-                    button_url = state.track_url
-                    btn_text = f"В {state.source_display}"
+                if state.source == "spotify":
+                    if state.track_url and state.track_url.startswith("http"):
+                        button_url = state.track_url
+                    elif state.track_url and state.track_url.startswith("spotify:track:"):
+                        track_id = state.track_url.split(":")[-1]
+                        button_url = f"https://open.spotify.com/track/{track_id}"
+                    else:
+                        query = urllib.parse.quote_plus(f"{artist} {title}")
+                        button_url = f"https://open.spotify.com/search/{query}"
+                    btn_text = "Слушать в Spotify"
+                elif state.source == "soundcloud":
+                    if state.track_url and state.track_url.startswith("http"):
+                        button_url = state.track_url
+                    else:
+                        query = urllib.parse.quote_plus(f"{artist} {title}")
+                        button_url = f"https://soundcloud.com/search?q={query}"
+                    btn_text = "В SoundCloud"
                 else:
-                    query = urllib.parse.quote_plus(f"{artist} {title}")
-                    button_url = f"https://www.youtube.com/results?search_query={query}"
-                    btn_text = self.config.get("button_label", "🔍 Найти трек")
+                    if state.track_url and state.track_url.startswith("http"):
+                        button_url = state.track_url
+                        btn_text = f"В {state.source_display}"
+                    else:
+                        query = urllib.parse.quote_plus(f"{artist} {title}")
+                        button_url = f"https://www.youtube.com/results?search_query={query}"
+                        btn_text = self.config.get("button_label", "🔍 Найти трек")
 
                 activity["buttons"] = [
                     {

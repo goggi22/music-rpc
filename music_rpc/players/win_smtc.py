@@ -13,7 +13,6 @@ SessionManager = None
 PlaybackStatus = None
 
 if sys.platform == "win32":
-    import asyncio
     try:
         from winrt.windows.media.control import (
             GlobalSystemMediaTransportControlsSessionManager as _SM,
@@ -21,7 +20,7 @@ if sys.platform == "win32":
         )
         SessionManager = _SM
         PlaybackStatus = _PS
-    except ImportError:
+    except BaseException:
         try:
             from winsdk.windows.media.control import (
                 GlobalSystemMediaTransportControlsSessionManager as _SM,
@@ -29,36 +28,41 @@ if sys.platform == "win32":
             )
             SessionManager = _SM
             PlaybackStatus = _PS
-        except ImportError:
-            logger.warning("Windows Media SDK не найден! Установите winrt-Windows.Media.Control или winsdk.")
+        except BaseException:
+            logger.debug("Windows Media SDK не найден (winrt/winsdk).")
 
 
 class WinSMTCHelper:
-    """Обертка для доступа к сессиям SMTC в Windows."""
+    """Обертка для безопасного доступа к сессиям SMTC в Windows."""
 
     _manager = None
+    _failed = False
 
     @classmethod
     async def get_manager(cls):
-        if not SessionManager:
+        if not SessionManager or cls._failed:
             return None
         if cls._manager is None:
             try:
                 cls._manager = await SessionManager.request_async()
-            except Exception as e:
-                logger.warning("Не удалось инициализировать SMTC SessionManager: %s", e)
+            except BaseException as e:
+                cls._failed = True
+                logger.debug("Не удалось инициализировать SMTC SessionManager: %s", e)
+                return None
         return cls._manager
 
     @classmethod
     async def get_sessions(cls) -> List[Any]:
-        mgr = await cls.get_manager()
-        if not mgr:
+        if cls._failed:
             return []
         try:
+            mgr = await cls.get_manager()
+            if not mgr:
+                return []
             return list(mgr.get_sessions())
-        except Exception:
+        except BaseException:
             return []
 
     @classmethod
     def is_available(cls) -> bool:
-        return SessionManager is not None
+        return SessionManager is not None and not cls._failed

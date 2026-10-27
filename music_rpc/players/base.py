@@ -39,3 +39,7 @@ class BasePlayerWatcher:
     def get_state(self) -> Optional[TrackState]:
         """Возвращает текущее состояние трека или None, если плеер не запущен."""
         raise NotImplementedError
+
+    def control_media(self, action: str) -> bool:
+        """Управление воспроизведением (PlayPause, Next, Previous)."""
+        return False
