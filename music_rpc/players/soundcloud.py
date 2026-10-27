@@ -170,7 +170,7 @@ class SoundCloudWatcher(BasePlayerWatcher):
         import asyncio
         try:
             return asyncio.run(asyncio.wait_for(self._async_windows_state(), timeout=2.0))
-        except Exception:
+        except BaseException:
             return None
 
     async def _async_windows_state(self) -> Optional[TrackState]:
@@ -249,3 +249,55 @@ class SoundCloudWatcher(BasePlayerWatcher):
             )
         except Exception:
             return None
+
+    def control_media(self, action: str) -> bool:
+        if sys.platform == "win32":
+            return self._control_windows(action)
+        return self._control_linux(action)
+
+    def _control_linux(self, action: str) -> bool:
+        if not self.bus:
+            return False
+        try:
+            for name in self.bus.list_names():
+                if name.startswith("org.mpris.MediaPlayer2.") and any(b in name.lower() for b in self.browser_hints):
+                    obj = self.bus.get_object(name, "/org/mpris/MediaPlayer2")
+                    player = dbus.Interface(obj, "org.mpris.MediaPlayer2.Player")
+                    act = action.lower()
+                    if act in ("playpause", "toggle", "play_pause", "pause", "play"):
+                        player.PlayPause()
+                    elif act in ("next", "skip"):
+                        player.Next()
+                    elif act in ("previous", "prev"):
+                        player.Previous()
+                    return True
+        except Exception as e:
+            logger.debug("Ошибка управления SoundCloud Linux: %s", e)
+        return False
+
+    def _control_windows(self, action: str) -> bool:
+        import asyncio
+        async def _act():
+            from .win_smtc import WinSMTCHelper
+            if not WinSMTCHelper.is_available():
+                return False
+            sessions = await WinSMTCHelper.get_sessions()
+            for s in sessions:
+                try:
+                    app_id = (s.source_app_user_model_id or "").lower()
+                    if any(b in app_id for b in self.browser_hints):
+                        act = action.lower()
+                        if act in ("playpause", "toggle", "play_pause", "pause", "play"):
+                            await s.try_toggle_play_pause_async()
+                        elif act in ("next", "skip"):
+                            await s.try_skip_next_async()
+                        elif act in ("previous", "prev"):
+                            await s.try_skip_previous_async()
+                        return True
+                except Exception:
+                    continue
+            return False
+        try:
+            return asyncio.run(asyncio.wait_for(_act(), timeout=2.0))
+        except Exception:
+            return False
