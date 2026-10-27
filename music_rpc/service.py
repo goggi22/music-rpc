@@ -145,64 +145,37 @@ class MusicRPCService:
             is_connected = self.ipc.connected
 
         if need_update and is_connected:
-            activity_type = int(self.config.get("activity_type", 2))
+            activity_type = int(self.config.get("activity_type", 0))
 
-            # Точная настройка под конкретный плеер
+            # Общие ассеты (только чистая обложка альбома без мелких значков в углу)
+            assets: Dict[str, Any] = {
+                "large_image": cover_url
+            }
+            if state.album:
+                assets["large_text"] = sanitize_str(state.album)
+
+            # Настройка текста и заголовка под источник
             if state.source == "spotify":
-                # Заголовок: "Listening to Spotify" (Слушает Spotify)
                 activity_name = "Spotify"
                 state_text = f"by {artist}" if not artist.lower().startswith("by ") else artist
                 if status == "Paused":
                     state_text = f"⏸ {state_text}"
 
-                # Обложка и hover-текст альбома (БЕЗ маленькой иконки, как в оригинале!)
-                assets: Dict[str, Any] = {
-                    "large_image": cover_url
-                }
-                if state.album:
-                    assets["large_text"] = sanitize_str(state.album)
-
             elif state.source == "soundcloud":
-                # Заголовок: "Listening to SoundCloud" (Слушает SoundCloud)
                 activity_name = "SoundCloud"
                 state_text = f"by {artist}" if not artist.lower().startswith("by ") else artist
                 if status == "Paused":
                     state_text = f"⏸ {state_text}"
 
-                # Маленькая иконка: официальный ассет 'soundcloud' в приложении 802958833214423081
-                assets = {
-                    "large_image": cover_url,
-                    "small_image": "soundcloud",
-                    "small_text": "in SoundCloud (Пауза)" if status == "Paused" else "in SoundCloud"
-                }
-                if state.album:
-                    assets["large_text"] = sanitize_str(state.album)
-
             elif state.source == "telegram":
-                # Заголовок: "Listening to Telegram" (Слушает Telegram)
                 activity_name = "Telegram"
                 state_fmt = self.config.get("state_format", "{artist}")
                 formatted_state = state_fmt.replace("{artist}", artist).replace("{title}", title)
                 state_text = f"⏸ {formatted_state}" if status == "Paused" else formatted_state
 
-                # Маленькая иконка: ассет '1' в приложении 1262937085635985409
-                assets = {
-                    "large_image": cover_url,
-                    "small_image": "1",
-                    "small_text": "in Telegram (Пауза)" if status == "Paused" else "in Telegram"
-                }
-                if state.album:
-                    assets["large_text"] = sanitize_str(state.album)
-
             else:  # manual / кастомный трек / другое
                 activity_name = state.source_display or "Music"
                 state_text = f"⏸ {artist}" if status == "Paused" else artist
-                assets = {
-                    "large_image": cover_url,
-                    "small_text": "Music RPC"
-                }
-                if state.album:
-                    assets["large_text"] = sanitize_str(state.album)
 
             show_author = bool(self.config.get("show_author_as_activity_name", False))
             if show_author and artist:
