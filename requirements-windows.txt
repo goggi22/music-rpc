@@ -1,6 +1,7 @@
 # Зависимости Music RPC для Windows
-PySide6>=6.5.0
-
-# Windows System Media Transport Controls (SMTC)
+# Windows System Media Transport Controls (SMTC) для чтения треков из плееров
 winrt-Windows.Media.Control>=4.0.0; python_version >= "3.12"
 winsdk>=1.0.0; python_version < "3.12"
+
+# Опционально для запуска с флагом --gui:
+# PySide6>=6.5.0

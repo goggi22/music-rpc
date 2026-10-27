@@ -9,3 +9,5 @@ build/
 *.spec
 *.zip
 run_background.vbs
+.github/
+.venv/
