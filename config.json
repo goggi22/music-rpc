@@ -1,0 +1,22 @@
+{
+    "client_id": "1262937085635985409",
+    "activity_type": 2,
+    "show_author_as_activity_name": true,
+    "state_format": "{artist}",
+    "auto_detect_missing_artist": true,
+    "small_text_label": "in Telegram",
+    "search_covers": true,
+    "show_paused": true,
+    "show_button": true,
+    "button_label": "🔍 Найти трек",
+    "poll_interval_seconds": 1.0,
+    "fallback_cover": "https://cdn.discordapp.com/app-assets/1262937085635985409/1262949949071691818.png",
+    "player_name_hints": [
+        "telegram",
+        "ayugram",
+        "tdesktop",
+        "64gram",
+        "kotatogram",
+        "exteragram"
+    ]
+}
