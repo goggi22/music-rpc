@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Music RPC - Универсальный Discord Rich Presence для Spotify, Telegram и SoundCloud.
-Точка входа: GUI (PySide6) или CLI/Headless режим.
+Точка входа: по умолчанию быстрый интерактивный CLI терминал.
 """
 
 import sys
@@ -13,6 +13,7 @@ import logging
 
 from music_rpc.core.config import ConfigManager
 from music_rpc.service import MusicRPCService
+from music_rpc.cli import MusicRPCCLI
 
 logging.basicConfig(
     level=logging.INFO,
@@ -22,9 +23,9 @@ logging.basicConfig(
 logger = logging.getLogger("MusicRPC")
 
 
-def run_cli(config_manager: ConfigManager):
-    """Консольный (фоновый) режим работы без GUI."""
-    logger.info("Запуск Music RPC в консольном режиме...")
+def run_headless(config_manager: ConfigManager):
+    """Консольный фоновый режим без интерактива (для systemd/демонов)."""
+    logger.info("Запуск Music RPC в фоновом режиме...")
     service = MusicRPCService(config_manager)
 
     running = True
@@ -54,13 +55,15 @@ def run_cli(config_manager: ConfigManager):
 
 
 def run_gui(config_manager: ConfigManager):
-    """Графический интерфейс на PySide6."""
+    """Опциональный графический интерфейс на PySide6."""
     try:
         from PySide6.QtWidgets import QApplication
         from music_rpc.gui.main_window import MainWindow
     except ImportError:
-        logger.warning("PySide6 не установлен! Переключение в консольный режим (CLI)...")
-        run_cli(config_manager)
+        logger.warning("PySide6 не установлен. Запуск в интерактивном CLI...")
+        service = MusicRPCService(config_manager)
+        cli = MusicRPCCLI(service, config_manager)
+        cli.run()
         return
 
     app = QApplication(sys.argv)
@@ -80,9 +83,13 @@ def run_gui(config_manager: ConfigManager):
 
 def main():
     parser = argparse.ArgumentParser(description="Music RPC - Spotify, Telegram, SoundCloud Discord Presence")
-    parser.add_argument("--cli", "--headless", action="store_true", help="Запустить в консольном режиме без графического интерфейса")
-    parser.add_argument("--source", choices=["auto", "spotify", "telegram", "soundcloud"], help="Принудительный выбор источника")
+    parser.add_argument("--gui", action="store_true", help="Запустить в графическом интерфейсе (PySide6)")
+    parser.add_argument("--headless", "--daemon", action="store_true", help="Фоновый режим без интерактивного меню")
+    parser.add_argument("--source", choices=["auto", "spotify", "telegram", "soundcloud", "manual"], help="Выбор источника")
     parser.add_argument("--config", default="config.json", help="Путь к файлу конфигурации")
+    parser.add_argument("--artist", help="Имя исполнителя для ручного ввода")
+    parser.add_argument("--title", help="Название трека для ручного ввода")
+    parser.add_argument("--album", help="Альбом для ручного ввода")
 
     args = parser.parse_args()
 
@@ -96,10 +103,16 @@ def main():
     if args.source:
         config.set("source", args.source)
 
-    if args.cli:
-        run_cli(config)
-    else:
+    if args.gui:
         run_gui(config)
+    elif args.headless or not sys.stdin.isatty():
+        run_headless(config)
+    else:
+        service = MusicRPCService(config)
+        if args.artist and args.title:
+            service.set_manual_track(args.artist, args.title, args.album or "")
+        cli = MusicRPCCLI(service, config)
+        cli.run()
 
 
 if __name__ == "__main__":

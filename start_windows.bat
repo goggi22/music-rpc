@@ -1,26 +1,24 @@
 @echo off
 chcp 65001 >nul
-title Music RPC
+title Music RPC - Discord Presence
 
 echo ========================================================
-echo   Music RPC - Spotify, Telegram, SoundCloud для Windows
+echo   Music RPC - Spotify, Telegram, SoundCloud CLI
 echo ========================================================
 echo.
 
 cd /d "%~dp0"
 
-:: 0. Быстрый запуск автономного EXE (если файл уже скомпилирован)
-if exist "%~dp0music-rpc.exe" (\
-    echo [OK] Обнаружен автономный файл music-rpc.exe!
-    echo Запуск приложения...
-    start "" "%~dp0music-rpc.exe" %*
-    exit /b 0
+:: 0. Быстрый запуск автономного EXE (если файл присутствует)
+if exist "%~dp0music-rpc.exe" (
+    "%~dp0music-rpc.exe" %*
+    set "EXIT_CODE=%errorlevel%"
+    goto :finished
 )
 if exist "%~dp0dist\music-rpc.exe" (
-    echo [OK] Обнаружен автономный файл dist\music-rpc.exe!
-    echo Запуск приложения...
-    start "" "%~dp0dist\music-rpc.exe" %*
-    exit /b 0
+    "%~dp0dist\music-rpc.exe" %*
+    set "EXIT_CODE=%errorlevel%"
+    goto :finished
 )
 
 :: 1. Поиск интерпретатора Python (поддерживаются все версии от 3.8 до 3.16+)
@@ -85,76 +83,51 @@ if "%PY_CMD%"=="" (
 exit /b
 
 :python_found
-echo [OK] Найден интерпретатор Python:
+echo [OK] Найден Python:
 %PY_CMD% --version
 echo.
 
 :: 2. Проверка pip
 %PY_CMD% -m pip --version >nul 2>&1
 if %errorlevel% neq 0 (
-    echo [INFO] Модуль pip не найден, пробуем инициализировать через ensurepip...
+    echo [INFO] Модуль pip не найден, инициализируем через ensurepip...
     %PY_CMD% -m ensurepip --default-pip >nul 2>&1
 )
 
-:: 3. Проверка библиотек (PySide6 и Windows Media)
-echo [1/2] Проверка установленных библиотек...
-%PY_CMD% -c "import PySide6" >nul 2>&1
-if %errorlevel% neq 0 goto :install_deps
-
+:: 3. Проверка библиотек Windows Media SMTC
 %PY_CMD% -c "import winrt.windows.media.control" >nul 2>&1
 if %errorlevel% equ 0 goto :deps_ok
 
 %PY_CMD% -c "import winsdk.windows.media.control" >nul 2>&1
 if %errorlevel% equ 0 goto :deps_ok
 
-:install_deps
-echo [INFO] Установка необходимых библиотек (PySide6, Windows Media SDK)...
-echo.
-%PY_CMD% -m pip install -r requirements-windows.txt
-if %errorlevel% equ 0 goto :deps_installed
+echo [INFO] Установка библиотеки Windows Media (winsdk)...
+%PY_CMD% -m pip install winsdk >nul 2>&1
+if %errorlevel% equ 0 goto :deps_ok
 
-echo [INFO] Попытка установки напрямую...
-%PY_CMD% -m pip install PySide6 winrt-Windows.Media.Control
-if %errorlevel% equ 0 goto :deps_installed
-
-echo.
-echo [ОШИБКА] Не удалось автоматически установить библиотеки!
-echo Проверьте подключение к интернету или запустите вручную:
-echo   %PY_CMD% -m pip install -r requirements-windows.txt
-goto :error_exit
-
-:deps_installed
-echo.
-echo [OK] Библиотеки успешно установлены!
-echo.
-goto :deps_done
+%PY_CMD% -m pip install winrt-Windows.Media.Control >nul 2>&1
 
 :deps_ok
-echo [OK] Все библиотеки уже установлены.
-echo.
-
-:deps_done
-:: 4. Запуск Music RPC
-echo [2/2] Запуск графического интерфейса Music RPC...
-echo ========================================================
-echo.
-
-%PY_CMD% main.py
+:: 4. Запуск Music RPC CLI
+%PY_CMD% main.py %*
 set "EXIT_CODE=%errorlevel%"
 
+:finished
 echo.
 if %EXIT_CODE% neq 0 (
     echo ========================================================
     echo [ОШИБКА] Приложение завершилось с кодом: %EXIT_CODE%
     echo ========================================================
+    goto :error_exit
 ) else (
     echo ========================================================
-    echo Приложение завершило работу.
+    echo Music RPC завершил работу.
     echo ========================================================
+    exit /b 0
 )
 
 :error_exit
 echo.
-echo Нажмите любую клавишу для закрытия этого окна...
+echo Нажмите любую клавишу для закрытия...
 pause >nul
 exit /b %EXIT_CODE%

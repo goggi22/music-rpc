@@ -1,6 +1,6 @@
 {
     "client_id": "1262937085635985409",
-    "source": "spotify",
+    "source": "auto",
     "activity_type": 2,
     "show_author_as_activity_name": true,
     "state_format": "{artist}",
@@ -10,35 +10,15 @@
     "show_button": true,
     "button_label": "🔍 Найти трек",
     "poll_interval_seconds": 1.0,
+    "fallback_cover": "https://cdn.discordapp.com/app-assets/1262937085635985409/1262949949071691818.png",
     "minimize_to_tray": true,
     "start_minimized": false,
-    "fallback_cover": "https://cdn.discordapp.com/app-assets/1262937085635985409/1262949949071691818.png",
-    "telegram_hints": [
-        "telegram",
-        "ayugram",
-        "tdesktop",
-        "64gram",
-        "kotatogram"
-    ],
-    "spotify_hints": [
-        "spotify"
-    ],
-    "browser_hints": [
-        "chrome",
-        "msedge",
-        "firefox",
-        "brave",
-        "opera",
-        "vivaldi",
-        "yandex",
-        "chromium"
-    ],
-    "small_text_label": "in Telegram",
     "player_name_hints": [
         "telegram",
         "ayugram",
         "tdesktop",
         "64gram",
-        "kotatogram"
+        "kotatogram",
+        "exteragram"
     ]
 }
