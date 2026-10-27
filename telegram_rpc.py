@@ -26,15 +26,24 @@ from typing import Optional, Dict, Any, Tuple
 if sys.platform == "win32":
     import asyncio
     try:
-        import winsdk.windows.media.control as wmc
-        from winsdk.windows.media.control import (
+        # Современный PyWinRT (Python 3.10 - 3.16+)
+        import winrt.windows.media.control as wmc
+        from winrt.windows.media.control import (
             GlobalSystemMediaTransportControlsSessionManager as SessionManager,
             GlobalSystemMediaTransportControlsSessionPlaybackStatus as PlaybackStatus
         )
     except ImportError:
-        wmc = None
-        SessionManager = None
-        PlaybackStatus = None
+        try:
+            # Предыдущий winsdk (Python 3.8 - 3.11)
+            import winsdk.windows.media.control as wmc
+            from winsdk.windows.media.control import (
+                GlobalSystemMediaTransportControlsSessionManager as SessionManager,
+                GlobalSystemMediaTransportControlsSessionPlaybackStatus as PlaybackStatus
+            )
+        except ImportError:
+            wmc = None
+            SessionManager = None
+            PlaybackStatus = None
     dbus = None
 else:
     wmc = None
@@ -785,7 +794,7 @@ def main():
 
     if sys.platform == "win32":
         if not SessionManager:
-            logger.warning("Модуль 'winsdk' не установлен! Установите его: pip install winsdk")
+            logger.warning("Модули Windows Media ('winrt' или 'winsdk') не найдены! Установите зависимости: pip install -r requirements-windows.txt")
         watcher = WindowsPlayerWatcher(player_hints, artist_finder=artist_finder, auto_detect=auto_detect_artist)
     else:
         watcher = TelegramPlayerWatcher(player_hints, artist_finder=artist_finder, auto_detect=auto_detect_artist)
