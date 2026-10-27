@@ -46,7 +46,7 @@ class MusicRPCService:
 
         self.ipc = DiscordIPC(initial_id)
         self.cover_finder = CoverFinder(self.config.get("fallback_cover"))
-        self.player_manager = PlayerManager(mode=source)
+        self.player_manager = PlayerManager(mode=source, config=self.config)
 
         # Колбэки для GUI
         self.on_state_change: Optional[Callable[[Optional[TrackState], str], None]] = None
