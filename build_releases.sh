@@ -8,12 +8,18 @@ DIST_DIR="$SCRIPT_DIR/dist"
 mkdir -p "$DIST_DIR"
 
 echo "=========================================================="
-echo "  Сборка релизных архивов tg-discord-rpc"
+echo "  Сборка релизных архивов Music RPC (Spotify, Telegram, SoundCloud)"
 echo "=========================================================="
 
 # Убеждаемся, что файлы для Windows имеют переносы строк CRLF (\r\n)
 python3 -c "
-for fname in ['start_windows.bat', 'install_autostart_windows.bat', 'uninstall_autostart_windows.bat', 'requirements-windows.txt']:
+for fname in [
+    'start_windows.bat',
+    'build_exe_windows.bat',
+    'install_autostart_windows.bat',
+    'uninstall_autostart_windows.bat',
+    'requirements-windows.txt'
+]:
     try:
         with open(fname, 'rb') as f:
             data = f.read()
@@ -24,35 +30,37 @@ for fname in ['start_windows.bat', 'install_autostart_windows.bat', 'uninstall_a
         print(f'Предупреждение: {fname}: {e}')
 "
 
-echo "📦 Сборка Linux архива: dist/tg-discord-rpc-linux.zip..."
-zip -j "$DIST_DIR/tg-discord-rpc-linux.zip" \
-    telegram_rpc.py \
+echo "📦 Сборка Linux архива: dist/music-rpc-linux.zip..."
+zip -r "$DIST_DIR/music-rpc-linux.zip" \
+    main.py \
+    music_rpc \
     config.json \
-    telegram-discord-rpc.service \
+    music-rpc.service \
     install_service.sh \
     uninstall_service.sh \
     start.sh \
+    requirements.txt \
     README.md \
     .gitignore \
-    .gitattributes
+    .gitattributes \
+    -x "*/__pycache__/*" "*__pycache__*"
 
-echo "📦 Сборка Windows архива: dist/tg-discord-rpc-windows.zip..."
-zip -j "$DIST_DIR/tg-discord-rpc-windows.zip" \
-    telegram_rpc.py \
+echo "📦 Сборка Windows архива: dist/music-rpc-windows.zip..."
+zip -r "$DIST_DIR/music-rpc-windows.zip" \
+    main.py \
+    music_rpc \
     config.json \
     start_windows.bat \
+    build_exe_windows.bat \
     install_autostart_windows.bat \
     uninstall_autostart_windows.bat \
     requirements-windows.txt \
     README.md \
     .gitignore \
-    .gitattributes
+    .gitattributes \
+    -x "*/__pycache__/*" "*__pycache__*"
 
 echo ""
 echo "✅ Архивы успешно собраны в папке dist/:"
 ls -lh "$DIST_DIR"
-echo ""
-echo "Для создания релиза на GitHub выполните:"
-echo "  gh release create v1.0.0 dist/*.zip --title \"Telegram Discord RPC v1.0.0\" --notes \"Полноценная поддержка Linux и Windows\""
-echo "или загрузите файлы вручную на странице: https://github.com/goggi22/tg-discord-rpc/releases/new"
 echo ""

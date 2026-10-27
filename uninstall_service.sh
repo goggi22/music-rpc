@@ -1,9 +1,16 @@
 #!/usr/bin/env bash
-set -e
+SERVICE_NAME="music-rpc.service"
+OLD_SERVICE="telegram-discord-rpc.service"
+SYSTEMD_USER_DIR="$HOME/.config/systemd/user"
 
-systemctl --user stop telegram-discord-rpc.service 2>/dev/null || true
-systemctl --user disable telegram-discord-rpc.service 2>/dev/null || true
-rm -f "$HOME/.config/systemd/user/telegram-discord-rpc.service"
+echo "Остановка и отключение сервиса $SERVICE_NAME..."
+systemctl --user stop "$SERVICE_NAME" 2>/dev/null || true
+systemctl --user disable "$SERVICE_NAME" 2>/dev/null || true
+rm -f "$SYSTEMD_USER_DIR/$SERVICE_NAME"
+
+systemctl --user stop "$OLD_SERVICE" 2>/dev/null || true
+systemctl --user disable "$OLD_SERVICE" 2>/dev/null || true
+rm -f "$SYSTEMD_USER_DIR/$OLD_SERVICE"
+
 systemctl --user daemon-reload
-
-echo "Сервис Telegram Discord RPC отключен и удален из автозапуска."
+echo "Сервис успешно удален."

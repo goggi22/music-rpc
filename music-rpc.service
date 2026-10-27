@@ -1,0 +1,12 @@
+[Unit]
+Description=Music Discord Rich Presence (Spotify, Telegram, SoundCloud)
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 %h/music-rpc/main.py --cli
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

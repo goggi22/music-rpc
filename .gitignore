@@ -5,4 +5,7 @@ __pycache__/
 .vscode/
 .idea/
 dist/
+build/
+*.spec
 *.zip
+run_background.vbs
