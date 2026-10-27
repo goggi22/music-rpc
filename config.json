@@ -1,8 +1,13 @@
 {
     "client_id": "1262937085635985409",
+    "client_ids": {
+        "spotify": "1316777610419634180",
+        "telegram": "1262937085635985409",
+        "soundcloud": "802958833214423081"
+    },
     "source": "auto",
     "activity_type": 2,
-    "show_author_as_activity_name": true,
+    "show_author_as_activity_name": false,
     "state_format": "{artist}",
     "auto_detect_missing_artist": true,
     "search_covers": true,
@@ -11,6 +16,9 @@
     "button_label": "🔍 Найти трек",
     "poll_interval_seconds": 1.0,
     "fallback_cover": "https://cdn.discordapp.com/app-assets/1262937085635985409/1262949949071691818.png",
+    "fallback_cover_spotify": "https://raw.githubusercontent.com/walkxcode/dashboard-icons/main/png/spotify.png",
+    "fallback_cover_soundcloud": "https://cdn.discordapp.com/app-icons/802958833214423081/c07fbcacdd970a86e334d59b27a1fa70.png",
+    "fallback_cover_telegram": "https://cdn.discordapp.com/app-assets/1262937085635985409/1262949949071691818.png",
     "minimize_to_tray": true,
     "start_minimized": false,
     "player_name_hints": [

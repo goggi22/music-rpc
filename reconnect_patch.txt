@@ -1,0 +1,11 @@
+    def reconnect(self, new_client_id: Optional[str] = None) -> bool:
+        if self.connected:
+            try:
+                self.clear_activity()
+            except Exception:
+                pass
+        self.disconnect()
+        if new_client_id:
+            self.client_id = new_client_id
+        self.last_connect_attempt = 0.0
+        return self.connect()
