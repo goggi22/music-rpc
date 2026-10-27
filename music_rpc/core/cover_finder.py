@@ -93,10 +93,14 @@ class CoverFinder:
             pass
         return None
 
-    def get_cover(self, artist: str, title: str) -> str:
+    def get_cover(self, artist: str, title: str, fallback_url: Optional[str] = None) -> str:
         cache_key = f"{artist.lower().strip()}|{title.lower().strip()}"
         if cache_key in self.cache:
-            return self.cache[cache_key]
+            cached = self.cache[cache_key]
+            if cached and cached != self.fallback_url:
+                return cached
+            if fallback_url and cached == self.fallback_url:
+                return fallback_url
 
         first_artist = re.split(r'[,/&]|feat\.|ft\.', artist, flags=re.IGNORECASE)[0].strip()
         clean_title = self._clean_for_search(title) or title
@@ -138,7 +142,8 @@ class CoverFinder:
                 if cover_url:
                     break
 
-        final_cover = cover_url or self.fallback_url
+        default_fb = fallback_url or self.fallback_url
+        final_cover = cover_url or default_fb
         if len(self.cache) >= self.max_cache_size:
             self.cache.pop(next(iter(self.cache)))
         self.cache[cache_key] = final_cover

@@ -129,6 +129,18 @@ class DiscordIPC:
                 pass
             self.sock = None
 
+    def reconnect(self, new_client_id: Optional[str] = None) -> bool:
+        if self.connected:
+            try:
+                self.clear_activity()
+            except Exception:
+                pass
+        self.disconnect()
+        if new_client_id:
+            self.client_id = new_client_id
+        self.last_connect_attempt = 0.0
+        return self.connect()
+
     def send_frame(self, op: int, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         if not self.connected:
             if not self.connect():
