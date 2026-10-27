@@ -11,6 +11,19 @@ echo "=========================================================="
 echo "  Сборка релизных архивов tg-discord-rpc"
 echo "=========================================================="
 
+# Убеждаемся, что файлы для Windows имеют переносы строк CRLF (\r\n)
+python3 -c "
+for fname in ['start_windows.bat', 'install_autostart_windows.bat', 'uninstall_autostart_windows.bat', 'requirements-windows.txt']:
+    try:
+        with open(fname, 'rb') as f:
+            data = f.read()
+        crlf = data.replace(b'\r\n', b'\n').replace(b'\r', b'\n').replace(b'\n', b'\r\n')
+        with open(fname, 'wb') as f:
+            f.write(crlf)
+    except Exception as e:
+        print(f'Предупреждение: {fname}: {e}')
+"
+
 echo "📦 Сборка Linux архива: dist/tg-discord-rpc-linux.zip..."
 zip -j "$DIST_DIR/tg-discord-rpc-linux.zip" \
     telegram_rpc.py \
@@ -20,7 +33,8 @@ zip -j "$DIST_DIR/tg-discord-rpc-linux.zip" \
     uninstall_service.sh \
     start.sh \
     README.md \
-    .gitignore
+    .gitignore \
+    .gitattributes
 
 echo "📦 Сборка Windows архива: dist/tg-discord-rpc-windows.zip..."
 zip -j "$DIST_DIR/tg-discord-rpc-windows.zip" \
@@ -31,7 +45,8 @@ zip -j "$DIST_DIR/tg-discord-rpc-windows.zip" \
     uninstall_autostart_windows.bat \
     requirements-windows.txt \
     README.md \
-    .gitignore
+    .gitignore \
+    .gitattributes
 
 echo ""
 echo "✅ Архивы успешно собраны в папке dist/:"

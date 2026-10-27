@@ -33,7 +33,7 @@
 1. Скачай `tg-discord-rpc-windows.zip` из [Releases](https://github.com/goggi22/tg-discord-rpc/releases) (или склонируй репозиторий).
 2. Распакуй архив в удобную папку.
 3. Для добавления в автозапуск дважды кликни:
-   - `install_autostart_windows.bat` — автоматически установит нужные зависимости (`winsdk`), добавит тихий автозапуск в систему и сразу запустит RPC в фоне.
+   - `install_autostart_windows.bat` — автоматически установит нужные зависимости, добавит тихий автозапуск в систему и сразу запустит RPC в фоне.
 4. Для разового запуска в окне консоли:
    - `start_windows.bat`
 5. Для удаления из автозапуска:
@@ -92,5 +92,5 @@ cd tg-discord-rpc
 
 ## 🛠 Системные требования
 - **Linux:** любой дистрибутив с D-Bus (Arch, Ubuntu, Fedora, Debian и т.д.), Python 3.8+ (`python-dbus`).
-- **Windows:** Windows 10 или 11, Python 3.8+ (`pip install winsdk`).
+- **Windows:** Windows 10 или 11, любая версия Python от 3.8 до 3.16+ (зависимости устанавливаются автоматически через `start_windows.bat`).
 - Запущенный клиент Discord (официальный клиент или Vesktop / WebCord) и Telegram Desktop / AyuGram.

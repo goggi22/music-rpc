@@ -1,1 +1,8 @@
-winsdk>=1.0.0
+# Зависимости для интеграции с System Media Transport Controls (SMTC) в Windows
+# Поддержка всех версий Python от 3.8 до 3.16+
+
+# Для Python 3.12+ (3.12, 3.13, 3.14, 3.15, 3.16+)
+winrt-Windows.Media.Control>=4.0.0; python_version >= "3.12"
+
+# Для Python до 3.12 (3.8, 3.9, 3.10, 3.11)
+winsdk>=1.0.0; python_version < "3.12"

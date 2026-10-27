@@ -11,10 +11,36 @@ echo   Установка Telegram Discord RPC в автозагрузку Windo
 echo ========================================================
 echo.
 
-python -c "import winsdk" 2>nul
+:: Поиск Python
+set "PY_CMD="
+py -c "import sys" >nul 2>&1 && set "PY_CMD=py"
+if "%PY_CMD%"=="" python -c "import sys" >nul 2>&1 && set "PY_CMD=python"
+if "%PY_CMD%"=="" python3 -c "import sys" >nul 2>&1 && set "PY_CMD=python3"
+
+for %%V in (316 315 314 313 312 311 310 39 38) do (
+    if "%PY_CMD%"=="" if exist "%LOCALAPPDATA%\Programs\Python\Python%%V\python.exe" set PY_CMD="%LOCALAPPDATA%\Programs\Python\Python%%V\python.exe"
+    if "%PY_CMD%"=="" if exist "%ProgramFiles%\Python%%V\python.exe" set PY_CMD="%ProgramFiles%\Python%%V\python.exe"
+    if "%PY_CMD%"=="" if exist "C:\Python%%V\python.exe" set PY_CMD="C:\Python%%V\python.exe"
+)
+
+if "%PY_CMD%"=="" (
+    echo [ОШИБКА] Python не обнаружен в системе!
+    echo Установите любую версию Python от 3.8 до 3.16+ с галочкой "Add to PATH".
+    pause
+    exit /b 1
+)
+
+:: Проверка библиотек
+%PY_CMD% -c "import winrt.windows.media.control" >nul 2>&1
 if %errorlevel% neq 0 (
-    echo [INFO] Установка библиотеки Windows Media SDK (winsdk)...
-    pip install -r requirements-windows.txt
+    %PY_CMD% -c "import winsdk.windows.media.control" >nul 2>&1
+    if %errorlevel% neq 0 (
+        echo [INFO] Установка библиотек Windows Media...
+        %PY_CMD% -m pip install -r requirements-windows.txt
+        if %errorlevel% neq 0 (
+            %PY_CMD% -m pip install winrt-Windows.Media.Control
+        )
+    )
 )
 
 :: Создаем VBS-скрипт для абсолютно тихого запуска без консольного окна
