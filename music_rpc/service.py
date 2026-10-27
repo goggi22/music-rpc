@@ -17,6 +17,19 @@ from .players.base import TrackState
 logger = logging.getLogger("MusicRPC.Service")
 
 
+DEFAULT_CLIENT_IDS = {
+    "spotify": "1316777610419634180",    # "Spotify" -> Listening to Spotify
+    "telegram": "1262937085635985409",   # "Telegram" -> Listening to Telegram
+    "soundcloud": "802958833214423081"   # "SoundCloud" -> Listening to SoundCloud
+}
+
+DEFAULT_FALLBACK_COVERS = {
+    "spotify": "https://raw.githubusercontent.com/walkxcode/dashboard-icons/main/png/spotify.png",
+    "soundcloud": "https://cdn.discordapp.com/app-icons/802958833214423081/c07fbcacdd970a86e334d59b27a1fa70.png",
+    "telegram": "https://cdn.discordapp.com/app-assets/1262937085635985409/1262949949071691818.png"
+}
+
+
 class MusicRPCService:
     """Основной сервис управления Rich Presence."""
 
@@ -24,9 +37,16 @@ class MusicRPCService:
         self.config = config_manager
         self.running = False
 
-        self.ipc = DiscordIPC(self.config.get("client_id", "1262937085635985409"))
+        self.client_ids = self.config.get("client_ids", DEFAULT_CLIENT_IDS)
+        source = self.config.get("source", "auto")
+        if source in self.client_ids:
+            initial_id = self.client_ids[source]
+        else:
+            initial_id = self.client_ids.get("spotify", "1316777610419634180")
+
+        self.ipc = DiscordIPC(initial_id)
         self.cover_finder = CoverFinder(self.config.get("fallback_cover"))
-        self.player_manager = PlayerManager(mode=self.config.get("source", "auto"))
+        self.player_manager = PlayerManager(mode=source)
 
         # Колбэки для GUI
         self.on_state_change: Optional[Callable[[Optional[TrackState], str], None]] = None
@@ -105,35 +125,37 @@ class MusicRPCService:
             or not self.had_active_presence
         )
 
-        # Разрешение обложки
+        # Разрешение обложки с безопасным фоллбэком под конкретный плеер (никогда не ставить чужую иконку!)
+        source_fallback = self.config.get(f"fallback_cover_{state.source}") or DEFAULT_FALLBACK_COVERS.get(state.source, self.config.get("fallback_cover"))
         cover_url = ""
         if state.art_url and state.art_url.startswith("http"):
             cover_url = state.art_url
         elif self.config.get("search_covers", True):
-            cover_url = self.cover_finder.get_cover(artist, title)
+            cover_url = self.cover_finder.get_cover(artist, title, fallback_url=source_fallback)
         else:
-            cover_url = self.config.get("fallback_cover")
+            cover_url = source_fallback
 
-        if self.on_state_change:
-            self.on_state_change(state, cover_url)
+        # Автоматическое переключение Client ID под активный источник
+        target_client_id = self.client_ids.get(state.source, self.config.get("client_id", "1262937085635985409"))
+        if self.ipc.client_id != target_client_id:
+            logger.info("[%s] Переключение Discord Application на Client ID: %s", state.source_display, target_client_id)
+            self.ipc.reconnect(target_client_id)
+            self.last_signature = None
+            need_update = True
+            is_connected = self.ipc.connected
 
         if need_update and is_connected:
             activity_type = int(self.config.get("activity_type", 2))
 
             # Точная настройка под конкретный плеер
             if state.source == "spotify":
-                # 100% вид официального Spotify в Discord:
-                # 1. Заголовок: "Listening to Spotify" (Слушает Spotify)
+                # Заголовок: "Listening to Spotify" (Слушает Spotify)
                 activity_name = "Spotify"
-                # 2. Исполнитель: "by <Artist>"
-                if not artist.lower().startswith("by "):
-                    state_text = f"by {artist}"
-                else:
-                    state_text = artist
+                state_text = f"by {artist}" if not artist.lower().startswith("by ") else artist
                 if status == "Paused":
                     state_text = f"⏸ {state_text}"
 
-                # 3. Обложка и hover-текст альбома (БЕЗ маленькой иконки в углу, как в оригинале!)
+                # Обложка и hover-текст альбома (БЕЗ маленькой иконки, как в оригинале!)
                 assets: Dict[str, Any] = {
                     "large_image": cover_url
                 }
@@ -141,42 +163,39 @@ class MusicRPCService:
                     assets["large_text"] = sanitize_str(state.album)
 
             elif state.source == "soundcloud":
-                show_author = bool(self.config.get("show_author_as_activity_name", True))
-                activity_name = sanitize_str(artist) if show_author and artist else "SoundCloud"
-                if not artist.lower().startswith("by "):
-                    state_text = f"by {artist}"
-                else:
-                    state_text = artist
+                # Заголовок: "Listening to SoundCloud" (Слушает SoundCloud)
+                activity_name = "SoundCloud"
+                state_text = f"by {artist}" if not artist.lower().startswith("by ") else artist
                 if status == "Paused":
                     state_text = f"⏸ {state_text}"
 
+                # Маленькая иконка: официальный ассет 'soundcloud' в приложении 802958833214423081
                 assets = {
                     "large_image": cover_url,
-                    "small_image": "https://raw.githubusercontent.com/walkxcode/dashboard-icons/main/png/soundcloud.png",
+                    "small_image": "soundcloud",
                     "small_text": "in SoundCloud (Пауза)" if status == "Paused" else "in SoundCloud"
                 }
                 if state.album:
                     assets["large_text"] = sanitize_str(state.album)
 
             elif state.source == "telegram":
-                show_author = bool(self.config.get("show_author_as_activity_name", True))
-                activity_name = sanitize_str(artist) if show_author and artist else (state.source_display or "Telegram")
-
+                # Заголовок: "Listening to Telegram" (Слушает Telegram)
+                activity_name = "Telegram"
                 state_fmt = self.config.get("state_format", "{artist}")
                 formatted_state = state_fmt.replace("{artist}", artist).replace("{title}", title)
                 state_text = f"⏸ {formatted_state}" if status == "Paused" else formatted_state
 
+                # Маленькая иконка: ассет '1' в приложении 1262937085635985409
                 assets = {
                     "large_image": cover_url,
-                    "small_image": "1",  # Telegram иконка в ID приложения
+                    "small_image": "1",
                     "small_text": "in Telegram (Пауза)" if status == "Paused" else "in Telegram"
                 }
                 if state.album:
                     assets["large_text"] = sanitize_str(state.album)
 
             else:  # manual / кастомный трек / другое
-                show_author = bool(self.config.get("show_author_as_activity_name", True))
-                activity_name = sanitize_str(artist) if show_author and artist else (state.source_display or "Music")
+                activity_name = state.source_display or "Music"
                 state_text = f"⏸ {artist}" if status == "Paused" else artist
                 assets = {
                     "large_image": cover_url,
@@ -184,6 +203,10 @@ class MusicRPCService:
                 }
                 if state.album:
                     assets["large_text"] = sanitize_str(state.album)
+
+            show_author = bool(self.config.get("show_author_as_activity_name", False))
+            if show_author and artist:
+                activity_name = sanitize_str(artist)
 
             activity: Dict[str, Any] = {
                 "type": activity_type,
